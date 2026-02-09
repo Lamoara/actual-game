@@ -46,7 +46,6 @@ pub(crate) struct State {
     rotated_vertices: Vec<Vertex>,
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
-    depth_texture_bind_gourp: wgpu::BindGroup,
     depth_texture: Texture,
     pub window: Arc<Window>,
 }
@@ -152,45 +151,6 @@ impl State {
         let depth_texture =
             texture::Texture::create_depth_texture(&device, &config, "depth_texture");
 
-        
-        let depth_texture_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Depth,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
-                        count: None,
-                    },
-                ],
-                label: Some("depth_texture_bind_group_layout"),
-            });
-
-        let depth_texture_bind_gourp = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &depth_texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&depth_texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&depth_texture.sampler),
-                },
-            ],
-            label: Some("depth_texture_bind_gourp"),
-        });
-
         let camera = Camera {
             eye: (0.0, 1.0, 2.0).into(),
             target: (0.0, 0.0, 0.0).into(),
@@ -243,7 +203,7 @@ impl State {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout, &depth_texture_bind_group_layout],
+                bind_group_layouts: &[&texture_bind_group_layout, &camera_bind_group_layout],
                 immediate_size: 0,
             });
 
@@ -358,7 +318,6 @@ impl State {
             rotated_vertices,
             instances,
             instance_buffer,
-            depth_texture_bind_gourp,
             depth_texture,
             window,
         })
@@ -394,12 +353,6 @@ impl State {
             &self.camera_buffer,
             0,
             bytemuck::cast_slice(&[self.camera_uniform]),
-        );
-        self.rotated_vertices = rotate_vertices(&self.rotated_vertices, Vector3::zero(), 0.01);
-        self.queue.write_buffer(
-            &self.vertex_buffer,
-            0,
-            bytemuck::cast_slice(&self.rotated_vertices),
         );
     }
 
@@ -455,7 +408,6 @@ impl State {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-            render_pass.set_bind_group(2, &self.depth_texture_bind_gourp, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
