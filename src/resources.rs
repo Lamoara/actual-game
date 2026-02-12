@@ -1,5 +1,8 @@
-use std::io::{BufReader, Cursor};
+use std::path::Path;
 
+use anyhow::Context;
+use futures_lite::io::BufReader;
+use image::{DynamicImage, Rgba, RgbaImage};
 use wgpu::util::DeviceExt;
 
 use crate::{model, texture};
@@ -66,29 +69,54 @@ pub async fn load_model(
     layout: &wgpu::BindGroupLayout,
 ) -> anyhow::Result<model::Model> {
     let obj_text = load_string(file_name).await?;
-    let obj_cursor = Cursor::new(obj_text);
-    let mut obj_reader = BufReader::new(obj_cursor);
+    let obj_reader = BufReader::new(obj_text.as_bytes());
+    let containing_folder = Path::new(file_name)
+        .parent()
+        .context("Model has no parent folder")?;
 
-    let (models, obj_materials) = tobj::load_obj_buf_async(
-        &mut obj_reader,
-        &tobj::LoadOptions {
-            triangulate: true,
-            single_index: true,
-            ..Default::default()
-        },
-        |p| async move {
-            let mat_text = load_string(&p).await.unwrap();
-            tobj::load_mtl_buf(&mut BufReader::new(Cursor::new(mat_text)))
+    let (models, obj_materials) = tobj::futures::load_obj_buf(
+        obj_reader,
+        &tobj::GPU_LOAD_OPTIONS,
+        |mtl_path| async {
+            let mtl_file = containing_folder.join(mtl_path);
+            let mtl_text = load_string(
+                mtl_file
+                    .to_str()
+                    .context("Invalid UTF-8 in material path")
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+            tobj::futures::load_mtl_buf(BufReader::new(mtl_text.as_bytes())).await
         },
     )
     .await?;
 
     let mut materials = Vec::new();
     for m in obj_materials? {
-        let Some(diffuse_texture) = &m.diffuse_texture else {
-            continue;
+        let diffuse_texture = if let Some(diffuse_texture) = &m.diffuse_texture {
+            let texture_file = containing_folder.join(diffuse_texture);
+            load_texture(
+                texture_file
+                    .to_str()
+                    .context("Invalid UTF-8 in texture path")?,
+                device,
+                queue,
+            )
+            .await
+            .with_context(|| format!("Error loading {}", texture_file.display()))?
+        } else {
+            let kd = m.diffuse.unwrap_or([1.0, 1.0, 1.0]);
+            let rgba = Rgba([
+                (kd[0].clamp(0.0, 1.0) * 255.0) as u8,
+                (kd[1].clamp(0.0, 1.0) * 255.0) as u8,
+                (kd[2].clamp(0.0, 1.0) * 255.0) as u8,
+                255,
+            ]);
+            let image = DynamicImage::ImageRgba8(RgbaImage::from_pixel(1, 1, rgba));
+            let label = format!("{}_kd_fallback", m.name);
+            texture::Texture::from_image(device, queue, &image, Some(&label))?
         };
-        let diffuse_texture = load_texture(diffuse_texture, device, queue).await?;
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout,
             entries: &[
@@ -170,6 +198,7 @@ pub async fn load_model(
             }
         })
         .collect::<Vec<_>>();
+    println!("Loaded model {:?} with {} meshes and {} materials", file_name, meshes.len(), materials.len());
 
     Ok(model::Model { meshes, materials })
 }

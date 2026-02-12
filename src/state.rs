@@ -128,7 +128,7 @@ impl State {
             aspect: config.width as f32 / config.height as f32,
             fovy: 45.0,
             znear: 0.1,
-            zfar: 100.0,
+            zfar: 1000.0,
         };
 
         let camera_controller = CameraController::new(0.2);
@@ -251,7 +251,7 @@ impl State {
         });
 
         let obj_model =
-            resources::load_model("cube.obj", &device, &queue, &texture_bind_group_layout)
+            resources::load_model("low_poly_island/low-poly-mill.obj", &device, &queue, &texture_bind_group_layout)
                 .await
                 .unwrap();
 
@@ -362,7 +362,7 @@ impl State {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.draw_model_instanced(
                 &self.obj_model,
-                0..self.instances.len() as u32,
+                0..1 as u32,
                 &self.camera_bind_group,
             );
         }
