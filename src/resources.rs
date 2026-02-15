@@ -74,10 +74,8 @@ pub async fn load_model(
         .parent()
         .context("Model has no parent folder")?;
 
-    let (models, obj_materials) = tobj::futures::load_obj_buf(
-        obj_reader,
-        &tobj::GPU_LOAD_OPTIONS,
-        |mtl_path| async {
+    let (models, obj_materials) =
+        tobj::futures::load_obj_buf(obj_reader, &tobj::GPU_LOAD_OPTIONS, |mtl_path| async {
             let mtl_file = containing_folder.join(mtl_path);
             let mtl_text = load_string(
                 mtl_file
@@ -88,9 +86,8 @@ pub async fn load_model(
             .await
             .unwrap();
             tobj::futures::load_mtl_buf(BufReader::new(mtl_text.as_bytes())).await
-        },
-    )
-    .await?;
+        })
+        .await?;
 
     let mut materials = Vec::new();
     for m in obj_materials? {
@@ -198,7 +195,12 @@ pub async fn load_model(
             }
         })
         .collect::<Vec<_>>();
-    println!("Loaded model {:?} with {} meshes and {} materials", file_name, meshes.len(), materials.len());
+    println!(
+        "Loaded model {:?} with {} meshes and {} materials",
+        file_name,
+        meshes.len(),
+        materials.len()
+    );
 
     Ok(model::Model { meshes, materials })
 }

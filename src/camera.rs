@@ -48,67 +48,79 @@ impl CameraUniform {
 
 pub struct CameraController {
     speed: f32,
-    is_forward_pressed: bool,
-    is_backward_pressed: bool,
-    is_left_pressed: bool,
-    is_right_pressed: bool,
+    horizontal: f32,
+    vertical: f32,
 }
 
 impl CameraController {
     pub fn new(speed: f32) -> Self {
         Self {
             speed,
-            is_forward_pressed: false,
-            is_backward_pressed: false,
-            is_left_pressed: false,
-            is_right_pressed: false,
+            horizontal: 0.0,
+            vertical: 0.0,
         }
     }
 
     pub fn handle_key(&mut self, code: KeyCode, is_pressed: bool) -> bool {
         match code {
             KeyCode::KeyW | KeyCode::ArrowUp => {
-                self.is_forward_pressed = is_pressed;
+                self.vertical = if is_pressed {
+                    1.0
+                } else if self.vertical != -1.0 {
+                    0.0
+                } else {
+                    self.vertical
+                };
                 true
             }
             KeyCode::KeyA | KeyCode::ArrowLeft => {
-                self.is_left_pressed = is_pressed;
+                self.horizontal = if is_pressed {
+                    -1.0
+                } else if self.horizontal != 1.0 {
+                    0.0
+                } else {
+                    self.horizontal
+                };
                 true
             }
             KeyCode::KeyS | KeyCode::ArrowDown => {
-                self.is_backward_pressed = is_pressed;
+                self.vertical = if is_pressed {
+                    -1.0
+                } else if self.vertical != 1.0 {
+                    0.0
+                } else {
+                    self.vertical
+                };
                 true
             }
             KeyCode::KeyD | KeyCode::ArrowRight => {
-                self.is_right_pressed = is_pressed;
+                self.horizontal = if is_pressed {
+                    1.0
+                } else if self.horizontal != -1.0 {
+                    0.0
+                } else {
+                    self.horizontal
+                };
                 true
             }
             _ => false,
         }
     }
 
-    pub fn update_camera(&self, camera: &mut Camera) {
+    pub fn update_camera(&mut self, camera: &mut Camera) {
         let forward = camera.target - camera.eye;
         let forward_norm = forward.normalize();
-        let forward_mag = forward.magnitude();
 
-        if self.is_forward_pressed && forward_mag > self.speed {
-            camera.eye += forward_norm * self.speed;
-        }
-        if self.is_backward_pressed {
-            camera.eye -= forward_norm * self.speed;
-        }
+        let forward_vec = forward_norm * self.speed * self.vertical;
+        camera.eye += forward_vec;
+        camera.target += forward_vec;
 
         let right = forward_norm.cross(camera.up);
 
         let forward = camera.target - camera.eye;
         let forward_mag = forward.magnitude();
 
-        if self.is_right_pressed {
-            camera.eye = camera.target - (forward + right * self.speed).normalize() * forward_mag;
-        }
-        if self.is_left_pressed {
-            camera.eye = camera.target - (forward - right * self.speed).normalize() * forward_mag;
-        }
+        camera.eye = camera.target
+            - (forward - right * self.horizontal * self.speed).normalize() * forward_mag;
     }
 }
