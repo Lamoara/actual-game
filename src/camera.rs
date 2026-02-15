@@ -1,4 +1,4 @@
-use cgmath::{InnerSpace, SquareMatrix};
+use cgmath::{InnerSpace, Rotation, Rotation3, SquareMatrix};
 use winit::keyboard::KeyCode;
 
 pub struct Camera {
@@ -16,7 +16,7 @@ impl Camera {
         let view = cgmath::Matrix4::look_at_rh(self.eye, self.target, self.up);
         let proj = cgmath::perspective(cgmath::Deg(self.fovy), self.aspect, self.znear, self.zfar);
 
-        return OPENGL_TO_WGPU_MATRIX * proj * view;
+        OPENGL_TO_WGPU_MATRIX * proj * view
     }
 }
 
@@ -115,12 +115,10 @@ impl CameraController {
         camera.eye += forward_vec;
         camera.target += forward_vec;
 
-        let right = forward_norm.cross(camera.up);
-
         let forward = camera.target - camera.eye;
-        let forward_mag = forward.magnitude();
-
-        camera.eye = camera.target
-            - (forward - right * self.horizontal * self.speed).normalize() * forward_mag;
+        let yaw = cgmath::Rad(-self.horizontal * self.speed);
+        let rotation = cgmath::Quaternion::from_axis_angle(camera.up.normalize(), yaw);
+        let rotated_forward = rotation.rotate_vector(forward);
+        camera.target = camera.eye + rotated_forward;
     }
 }
