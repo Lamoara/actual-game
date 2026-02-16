@@ -1,11 +1,12 @@
-use std::{os::linux::raw::stat, sync::Arc};
+use std::sync::Arc;
 
 use winit::{
     application::ApplicationHandler,
-    event::{KeyEvent, WindowEvent},
+    dpi::PhysicalPosition,
+    event::{ElementState, KeyEvent, MouseButton, WindowEvent},
     event_loop::{ActiveEventLoop, EventLoop},
     keyboard::{KeyCode, PhysicalKey},
-    window::Window,
+    window::{CursorGrabMode, Window},
 };
 
 use crate::state::State;
@@ -17,6 +18,7 @@ pub struct App {
     #[cfg(target_arch = "wasm32")]
     proxy: Option<winit::event_loop::EventLoopProxy<State>>,
     state: Option<State>,
+    mouse_locked: bool,
 }
 
 impl App {
@@ -25,9 +27,32 @@ impl App {
         let proxy = Some(event_loop.create_proxy());
         Self {
             state: None,
+            mouse_locked: false,
             #[cfg(target_arch = "wasm32")]
             proxy,
         }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn try_lock_mouse(state: &State) -> bool {
+        let size = state.window.inner_size();
+        let center = PhysicalPosition::new(size.width as f64 * 0.5, size.height as f64 * 0.5);
+        let _ = state.window.set_cursor_position(center);
+
+        let lock_ok = state.window.set_cursor_grab(CursorGrabMode::Locked).is_ok()
+            || state.window.set_cursor_grab(CursorGrabMode::Confined).is_ok();
+
+        if lock_ok {
+            state.window.set_cursor_visible(false);
+        }
+
+        lock_ok
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn unlock_mouse(state: &State) {
+        let _ = state.window.set_cursor_grab(CursorGrabMode::None);
+        state.window.set_cursor_visible(true);
     }
 }
 
@@ -100,8 +125,32 @@ impl ApplicationHandler<State> for App {
         };
 
         match event {
+            WindowEvent::Focused(is_focused) => {
+                if is_focused {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        self.mouse_locked = Self::try_lock_mouse(state);
+                    }
+                } else {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        Self::unlock_mouse(state);
+                        self.mouse_locked = false;
+                    }
+                }
+            }
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => state.resize(size.width, size.height),
+            WindowEvent::MouseInput {
+                button: MouseButton::Left,
+                state: ElementState::Pressed,
+                ..
+            } => {
+                #[cfg(not(target_arch = "wasm32"))]
+                if !self.mouse_locked {
+                    self.mouse_locked = Self::try_lock_mouse(state);
+                }
+            }
             WindowEvent::RedrawRequested => {
                 state.update();
                 match state.render() {
@@ -123,10 +172,18 @@ impl ApplicationHandler<State> for App {
                         ..
                     },
                 ..
-            } => state.handle_key(event_loop, code, key_state.is_pressed()),
+            } => {
+                #[cfg(not(target_arch = "wasm32"))]
+                if code == KeyCode::Escape && key_state.is_pressed() && self.mouse_locked {
+                    Self::unlock_mouse(state);
+                    self.mouse_locked = false;
+                    return;
+                }
+                state.handle_key(event_loop, code, key_state.is_pressed())
+            }
             WindowEvent::CursorMoved {
-                device_id,
                 position,
+                ..
             } => {
                 state.handle_mouse_moved(position.x, position.y);
             }
