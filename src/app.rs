@@ -35,12 +35,13 @@ impl App {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn try_lock_mouse(state: &State) -> bool {
-        let size = state.window.inner_size();
-        let center = PhysicalPosition::new(size.width as f64 * 0.5, size.height as f64 * 0.5);
-        let _ = state.window.set_cursor_position(center);
+        center_cursor(state);
 
         let lock_ok = state.window.set_cursor_grab(CursorGrabMode::Locked).is_ok()
-            || state.window.set_cursor_grab(CursorGrabMode::Confined).is_ok();
+            || state
+                .window
+                .set_cursor_grab(CursorGrabMode::Confined)
+                .is_ok();
 
         if lock_ok {
             state.window.set_cursor_visible(false);
@@ -145,7 +146,8 @@ impl ApplicationHandler<State> for App {
                 button: MouseButton::Left,
                 state: ElementState::Pressed,
                 ..
-            } => {
+            } =>
+            {
                 #[cfg(not(target_arch = "wasm32"))]
                 if !self.mouse_locked {
                     self.mouse_locked = Self::try_lock_mouse(state);
@@ -181,11 +183,9 @@ impl ApplicationHandler<State> for App {
                 }
                 state.handle_key(event_loop, code, key_state.is_pressed())
             }
-            WindowEvent::CursorMoved {
-                position,
-                ..
-            } => {
+            WindowEvent::CursorMoved { position, .. } => {
                 state.handle_mouse_moved(position.x, position.y);
+                center_cursor(state);
             }
             _ => {}
         }
@@ -210,6 +210,13 @@ pub fn run() -> anyhow::Result<()> {
     event_loop.run_app(&mut app)?;
 
     Ok(())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn center_cursor(state: &State) {
+    let size = state.window.inner_size();
+    let center = PhysicalPosition::new(size.width as f64 * 0.5, size.height as f64 * 0.5);
+    let _ = state.window.set_cursor_position(center);
 }
 
 #[cfg(target_arch = "wasm32")]

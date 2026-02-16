@@ -37,6 +37,7 @@ pub(crate) struct State {
     instance_buffer: wgpu::Buffer,
     depth_texture: Texture,
     obj_model: model::Model,
+    last_frame_time: std::time::Instant,
     pub window: Arc<Window>,
 }
 
@@ -131,7 +132,7 @@ impl State {
             zfar: 1000.0,
         };
 
-        let camera_controller = CameraController::new(0.2);
+        let camera_controller = CameraController::new(8.0);
 
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
@@ -273,6 +274,7 @@ impl State {
             depth_texture,
             obj_model,
             window,
+            last_frame_time: std::time::Instant::now(),
         })
     }
 
@@ -296,17 +298,23 @@ impl State {
     }
 
     pub fn handle_mouse_moved(&mut self, x: f64, y: f64) {
-        self.mouse_pos = (x, y);
+        let size = self.window.inner_size();
+        let center = (size.width as f64 * 0.5, size.height as f64 * 0.5);
+        self.camera_controller
+            .handle_mouse_moved((x - center.0) as f32, (y - center.1) as f32);
     }
 
     pub fn update(&mut self) {
-        self.camera_controller.update_camera(&mut self.camera);
+        let delta = self.last_frame_time.elapsed().as_secs_f32();
+        self.camera_controller
+            .update_camera(&mut self.camera, delta);
         self.camera_uniform.update_view_proj(&self.camera);
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
             bytemuck::cast_slice(&[self.camera_uniform]),
         );
+        self.last_frame_time = std::time::Instant::now();
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {

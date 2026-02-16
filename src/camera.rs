@@ -50,6 +50,8 @@ pub struct CameraController {
     speed: f32,
     horizontal: f32,
     vertical: f32,
+    mouse_x: f32,
+    mouse_y: f32,
 }
 
 impl CameraController {
@@ -58,6 +60,8 @@ impl CameraController {
             speed,
             horizontal: 0.0,
             vertical: 0.0,
+            mouse_x: 0.0,
+            mouse_y: 0.0,
         }
     }
 
@@ -107,18 +111,41 @@ impl CameraController {
         }
     }
 
-    pub fn update_camera(&mut self, camera: &mut Camera) {
+    pub fn handle_mouse_moved(&mut self, delta_x: f32, delta_y: f32) {
+        self.mouse_x += delta_x;
+        self.mouse_y += delta_y;
+    }
+
+    pub fn update_camera(&mut self, camera: &mut Camera, delta: f32) {
         let forward = camera.target - camera.eye;
         let forward_norm = forward.normalize();
 
-        let forward_vec = forward_norm * self.speed * self.vertical;
+        let forward_vec = forward_norm * self.speed * self.vertical * delta;
         camera.eye += forward_vec;
         camera.target += forward_vec;
 
         let forward = camera.target - camera.eye;
-        let yaw = cgmath::Rad(-self.horizontal * self.speed);
+        let forward_norm = forward.normalize();
+
+        let right = forward_norm.cross(camera.up).normalize();
+        let right_vec = right * self.speed * self.horizontal * delta;
+        camera.eye += right_vec;
+        camera.target += right_vec;
+
+        let forward = camera.target - camera.eye;
+        let yaw = cgmath::Rad(-self.mouse_x * self.speed * delta);
         let rotation = cgmath::Quaternion::from_axis_angle(camera.up.normalize(), yaw);
         let rotated_forward = rotation.rotate_vector(forward);
         camera.target = camera.eye + rotated_forward;
+
+        let forward = camera.target - camera.eye;
+        let right = forward_norm.cross(camera.up).normalize();
+        let pitch = cgmath::Rad(-self.mouse_y * self.speed * delta);
+        let rotation = cgmath::Quaternion::from_axis_angle(right, pitch);
+        let rotated_forward = rotation.rotate_vector(forward);
+        camera.target = camera.eye + rotated_forward;
+
+        self.mouse_x = 0.0;
+        self.mouse_y = 0.0;
     }
 }
