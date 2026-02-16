@@ -48,6 +48,7 @@ impl CameraUniform {
 
 pub struct CameraController {
     speed: f32,
+    mouse_speed: f32,
     horizontal: f32,
     vertical: f32,
     mouse_x: f32,
@@ -55,9 +56,10 @@ pub struct CameraController {
 }
 
 impl CameraController {
-    pub fn new(speed: f32) -> Self {
+    pub fn new(speed: f32, mouse_speed: f32) -> Self {
         Self {
             speed,
+            mouse_speed,
             horizontal: 0.0,
             vertical: 0.0,
             mouse_x: 0.0,
@@ -133,14 +135,14 @@ impl CameraController {
         camera.target += right_vec;
 
         let forward = camera.target - camera.eye;
-        let yaw = cgmath::Rad(-self.mouse_x * self.speed * delta);
+        let yaw = cgmath::Rad(-self.mouse_x * self.mouse_speed * delta);
         let rotation = cgmath::Quaternion::from_axis_angle(camera.up.normalize(), yaw);
         let rotated_forward = rotation.rotate_vector(forward);
         camera.target = camera.eye + rotated_forward;
 
         let forward = camera.target - camera.eye;
         let right = forward_norm.cross(camera.up).normalize();
-        let pitch = cgmath::Rad(-self.mouse_y * self.speed * delta);
+        let pitch = cgmath::Rad(-self.mouse_y * self.mouse_speed * delta);
         let rotation = cgmath::Quaternion::from_axis_angle(right, pitch);
         let rotated_forward = rotation.rotate_vector(forward);
         camera.target = camera.eye + rotated_forward;

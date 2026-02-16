@@ -132,7 +132,7 @@ impl State {
             zfar: 1000.0,
         };
 
-        let camera_controller = CameraController::new(8.0);
+        let camera_controller = CameraController::new(8.0, 0.1);
 
         let mut camera_uniform = CameraUniform::new();
         camera_uniform.update_view_proj(&camera);
@@ -286,6 +286,8 @@ impl State {
             self.is_surface_configured = true;
             self.depth_texture =
                 texture::Texture::create_depth_texture(&self.device, &self.config, "depth_texture");
+
+            self.camera.aspect = width as f32/height as f32
         }
     }
 

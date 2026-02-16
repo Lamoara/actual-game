@@ -185,7 +185,9 @@ impl ApplicationHandler<State> for App {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 state.handle_mouse_moved(position.x, position.y);
-                center_cursor(state);
+                if self.mouse_locked {
+                    center_cursor(state);
+                }
             }
             _ => {}
         }
